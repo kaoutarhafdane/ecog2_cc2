@@ -1,0 +1,21 @@
+---
+title: "01_data-import"
+output:
+  github_document:
+    toc: true
+    toc_depth: 2
+---
+# Downloading data
+
+Télécharger les données  sur le Home page de M. Maignien. 
+
+```{bash, results='hide'}
+wget https://pagesperso.univ-brest.fr/~maignien/teaching/M1-MFA/UE-Ecogenomique2/EcoG2_data_cc2.tar.gz
+
+```
+
+# Decompress the data 
+
+```{bash, results='hide'}
+tar xvzf EcoG2_data_cc2.tar.gz
+```
