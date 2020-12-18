@@ -3,6 +3,7 @@
 
   - [appeler la librairie dada2](#appeler-la-librairie-dada2)
   - [Inspect read quality profiles](#inspect-read-quality-profiles)
+  - [Filter and trim](#filter-and-trim)
   - [appretissage des erreurs](#appretissage-des-erreurs)
   - [sample inference](#sample-inference)
   - [mairged paired reads](#mairged-paired-reads)
@@ -19,19 +20,31 @@
 library("dada2")
 ```
 
-Définir la variable path suivante pour qu’elle pointe vers le répertoire
-Miseq\_sop extrait sur la machine. Les données utilisées sont dans le
-fichier donnees que j’ai crée et j’ai mis tous les données importées
-dedans. Pour l’instant, considérez simplement les fichiers fastq
+    ## Warning: multiple methods tables found for 'which'
+
+Les données utilisées sont dans le fichier donnees que j’ai crée et j’ai
+mis à l’intérieur toutes les données importées dedans. La commande
+suivant permet de définir une variable path pour qu’elle pointe vers le
+répertoire donnees où j’ai mis l’ensemble des données extrait sur la
+machine. Pour l’instant, considérer simplement les fichiers fastq
 appariés à traiter.
 
 ``` r
-path <- "~/github/ecog2_cc2/donnees" # CHANGE ME to the directory containing the fastq files after unzipping.
+path <- "~/ecog2_cc2/donnees" # CHANGE ME to the directory containing the fastq files after unzipping.
 list.files(path)
 ```
 
+cela permet de lire les noms des fichiers fastq et effectuer quelques
+manipulations de chaînes pour obtenir des listes correspondantes des
+fichiers fastq forward et reverse. On va créer une variable fnFs et on
+lui assigne la valeur de résultat de la fonction sort() qui va classer
+les résultats de la fonction list.files(), qui va lister le fichier
+R1\_001.fastq. ensuite t va faire la même chose pour R2\_001.fastq. En
+suite on va extrairer les sample names avec la fonction strsplit(), en
+supposant que les noms de fichiers ont le format: SAMPLENAME\_XXX.fastq
+
 ``` r
-# Forward and reverse fastq filenames have format: SAMPLENAME_R1.fastq and SAMPLENAME_R2_001.fastq
+# Forward and reverse fastq filenames have format: SAMPLENAME_R1_1.fastq and SAMPLENAME_R2_1.fastq
 fnFs <- sort(list.files(path, pattern="_R1.fastq", full.names = TRUE))
 fnRs <- sort(list.files(path, pattern="_R2.fastq", full.names = TRUE))
 # Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
@@ -52,12 +65,33 @@ plotQualityProfile(fnFs[1:2])
 
 ![](02_data-analysis_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
 
+Les lectures forward sont de bonne qualité, avant 240. on va rogner
+ensuite les derniers nucléotides pour éviter des erreurs moins bien
+contrôlées qui peuvent s’y produire. on va tronquer donc les lectures
+avant à la position 240 (en coupant les 10 derniers nucléotides).
+
+on visualise le profil de qualité des reverse reads en utilisant la
+fonction plotQualityProfile qui va permettre de tracer un résumé visuel
+de la distribution des scores de qualité en fonction de la position de
+la séquence pour le fichier: fnRs fastq d’entrée.
+
 ``` r
 plotQualityProfile(fnRs[1:2])
 ```
 
-![](02_data-analysis_files/figure-gfm/unnamed-chunk-5-1.png)<!-- --> \#
-Filter and trim
+![](02_data-analysis_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+Comentaire de graphe au dessus: sur ce graphe on remarque que la qualité
+est moins bonne que celle du graphe des forwards, on tranque donc les
+lectures inversées à la position 200 où la distribution de qualité se
+bloque.
+
+# Filter and trim
+
+Attribuer les noms de fichiers aux fichiers fastq.gz filtrés. on crée
+une variable filtFs et on met dedans \_F\_filt.fastq.gz et puis une
+filtRs et on met dedans \_R\_filt.fastq.gz après on nome l’objet filtFs
+en utilisant la fonction names on fait pareil pour filtRs et on leur
+donne le nom sample.names qui est la valeur de la fonction.
 
 ``` r
 # Place filtered files in filtered/ subdirectory
@@ -68,15 +102,15 @@ names(filtRs) <- sample.names
 ```
 
 Nous utiliserons les paramètres de filtrage standard: maxN=0(DADA2 ne
-nécessite aucun Ns) truncQ=2, rm.phix=TRUEet maxEE=2. Le aramètre
+nécessite aucun Ns) truncQ=2, rm.phix=TRUEet maxEE=2. Le paramètre
 maxEEp définit le nombre maximum d ’«erreurs attendues» autorisées dans
 une lecture. Ici, on crée une variale out et on lui assigne les valeurs
 des résultats de la fonction filterAndTrim(), qui va filtrer et ajuster
 les fichiers fnFs, filtFs, fnRs, filtRs de fastq d’entrée (peut être
 compressé) en fonction de plusieurs critères: maxN=0, maxEE=c(2,2),
-truncQ=2, rm.phix=TRUE, compress=TRUE, multithread=TRUE , et génère des
+truncQ=2, rm.phix=TRUE,compress=TRUE, multithread=TRUE , et génère des
 fichiers fastq (compressés par défaut) contenant les lectures coupées
-qui ont passé les filtres. Des fichiers fastq revers et forward
+qui ont passé les filtrés. Des fichiers fastq revers et forward
 correspondants peuvent être fournis en entrée, auquel cas le filtrage
 est effectué sur les lectures avant et arrière indépendamment, et les
 deux lectures doivent passer pour que la paire de lecture soit sortie.
@@ -84,7 +118,7 @@ En suite on va utiliser la fonction head pour avoir un apperçu de
 l’objet out
 
 ``` r
-out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(240,200),trimLeft=c(21),
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(240,200),trimLeft=21,
               maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
               compress=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
 head(out)
@@ -103,7 +137,7 @@ head(out)
 dada2 calcul un model d’erreurs apartir des données de séquençage, cette
 méthode sur les reads F Reverse. L’algorithme DADA2 utilise un modèle
 d’erreur paramétrique ( err) et chaque jeu de données d’amplicon a un
-ensemble différent de taux d’erreur. La learnErrors méthode apprend ce
+ensemble différent de taux d’erreur. La learnErrors() méthode apprend ce
 modèle d’erreur à partir des données, en alternant l’estimation des taux
 d’erreur et l’inférence de la composition de l’échantillon jusqu’à ce
 qu’ils convergent vers une solution cohérente conjointement.
@@ -114,8 +148,9 @@ errF <- learnErrors(filtFs, multithread=TRUE)
 
     ## 105752691 total bases in 482889 reads from 3 samples will be used for learning the error rates.
 
-dada2 calcul un model d’erreurs apartir des données de séquençage, cette
-méthode sur les reads Reverse de la même manière que pour errF
+dada2 calcul un model d’erreurs apartir des données de séquençage, on
+applique cette méthode sur les reads Reverse de la même manière que pour
+errF.
 
 ``` r
 errR <- learnErrors(filtRs, multithread=TRUE)
@@ -123,14 +158,12 @@ errR <- learnErrors(filtRs, multithread=TRUE)
 
     ## 100755162 total bases in 562878 reads from 4 samples will be used for learning the error rates.
 
-le code suivant est pour vérifier si rien d’autre, de visualiser les
-taux d’erreur estimés en utilisant la fonction plotErrors. Cette
-fonction va tracer la fréquence observée de chaque transition (par
-exemple A-\> C) en fonction du score de qualité associé. Il trace
-également les taux d’erreur estimés finaux (s’ils existent). l’argument
-nominalQ=TRUE va permettre de tracer les taux d’erreur attendus (ligne
-rouge) si les scores de qualité correspondent exactement à leur
-définition nominale: Q = -10 log10 (p\_err).
+La fonction plotErrors() va tracer la fréquence observée de chaque
+transition (par exemple A-\> C) en fonction du score de qualité associé.
+Il trace également les taux d’erreur estimés finaux (s’ils existent).
+l’argument nominalQ=TRUE va permettre de tracer les taux d’erreur
+attendus (ligne rouge) si les scores de qualité correspondent exactement
+à leur définition nominale: Q = -10 log10 (p\_err).
 
 ``` r
 plotErrors(errF, nominalQ=TRUE)
@@ -141,6 +174,7 @@ plotErrors(errF, nominalQ=TRUE)
     ## Warning: Transformation introduced infinite values in continuous y-axis
 
 ![](02_data-analysis_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+
 Intérprétation de graphe précédent: graphe 1: la probabilité que A est A
 doit être max ainsi de suite… les taux d’erreur pour chaque transition
 sont indiquées sur les graphes (graphe 2: A–\>C etc) c2: probabilité
@@ -152,7 +186,7 @@ raisonnable et nous procédons en toute confiance.
 # sample inference
 
 on crée une nouvelle variable dadaFs pour corriger les jeux de données
-dada appliquée au donné Forward. La fonction dada supprime toutes les
+dada appliquée au donné Forward. La fonction dada() supprime toutes les
 erreurs de séquençage pour révéler les membres de la communauté
 séquencée. l’argument multithread=TRUE: le multithreading est activé
 et le nombre de threads disponibles est automatiquement déterminé. Si un
@@ -175,7 +209,7 @@ dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
     ## Sample 10 - 78645 reads in 20422 unique sequences.
     ## Sample 11 - 91534 reads in 24487 unique sequences.
 
-dada appliqué au donné reverse on crée une nouvelle variable dadaRs et
+dada appliqué au donné reverse. on crée une nouvelle variable dadaRs et
 on lui assigne la valeur de résultat de la fonction dada comme on a fait
 pour les reverse à fin de corriger les jeux de données appliquées pour
 les Reverse.
@@ -196,8 +230,8 @@ dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
     ## Sample 10 - 78645 reads in 22051 unique sequences.
     ## Sample 11 - 91534 reads in 28266 unique sequences.
 
-dada a crée des objet de class dada: dadaFs et dada Rs on regarde ce qui
-est dans le premier étagers du placard de dadaFS, on peut changer le 1
+dada a crée des objet de class dada: dadaFs et dadaRs on regarde ce qui
+est dans le premier étagers du placard de dadaFs, on peut changer le 1
 pour regarder à n’importe quel étage de dadaFS.
 
 ``` r
@@ -268,10 +302,10 @@ Donc là on a les reads fusionnés avec succès.
 
 # construire la table d’observation
 
-à partir des merged, on crée un nouvelle objet seqtab la fonction va
-permettre de construire une table de séquence (analogue à une table OTU)
-à partir de la liste d’échantillon mergers. la fonction dim va permettre
-de récupérer l’objet seqtab.
+A partir des merged, on crée un nouvelle objet seqtab La fonction
+makeSequenceTable(), va permettre de construire une table de séquence
+(analogue à une table OTU) à partir de la liste d’échantillon mergers.
+la fonction dim va permettre de récupérer l’objet seqtab.
 
 ``` r
 seqtab <- makeSequenceTable(mergers)
@@ -280,10 +314,12 @@ dim(seqtab)
 
     ## [1]    11 19426
 
-regarder la distribution de la longeur des séquences. La table de
-séquence est une matrix avec des lignes correspondant aux (et nommées
-par) les échantillons, et des colonnes correspondant (et nommées par)
-les variantes de séquence.
+Ici on veut regarder la distribution de la longeur des séquences. la
+fonction getSequences() va extraire les séquences de l’objet seqtab.
+nchar() va prenddre le résulat de la fonction getSequences comme
+argument et renvoie un vecteur dont les éléments contiennent les tailles
+des éléments correspondants. table() va permettre ensuite de créer un
+tableau de tout cela.
 
 ``` r
 # Inspect distribution of sequence lengths
@@ -296,22 +332,24 @@ table(nchar(getSequences(seqtab)))
     ##  376  377  378  382  386 
     ##   90    4    1    1    2
 
-dans mon objet seqtab j’ai une séq qui fait 251 paires de bases, une
-autre qui fait 252 etc
+dans mon objet seqtab j’ai une séq qui fait 352 paires de bases, une
+autre qui fait 353 etc
 
 # Remove chimeras
 
-une chimère: ça se passe pendant l’amplification par PCR donc par ex un
+Une chimère: ça se passe pendant l’amplification par PCR, donc par ex un
 ADN 16s amplifier par un fragment reverse et forrward. Si on prend que
 le forward,y aura élongation mais imaginant qu’elle s’arréte avant la
 fin de la séq 16S. Donc on va avoir le fragment 16S qui n’a pas bouger
-et un fragment non complet. donc àprès le 2ème cycle, le fragment non
+et un fragment non complet. donc après le 2ème cycle, le fragment non
 complet va pouvoir s’hybrider avec un 16s d’une autre bactérie, et
 l’élongation va continuer. on va avoir comme résultat au final un
 fragment hybride qui provient du premier ARN 16 et du deuxième. cela
 s’appelle chimère. On va éliminer ces chimères en utlisant la fonction
-removeBimeraDenovo le système va regarder tout les séq rares dans le
-début contig correspont au premier ARN et la fin au deuxième.
+removeBimeraDenovo(), et on va donner la valeur de résultat de la
+fonction à une nouvelle variable appelée seqtab.mochim le système va
+regarder tout les séq rares dans le début contig correspont au premier
+ARN et la fin au deuxième.
 
 ``` r
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
@@ -320,8 +358,8 @@ dim(seqtab.nochim)
 
     ## [1]   11 1557
 
-Donc le résultat montre qui il a détectrer 61 (=293-232) chimère sur
-293(= 1+88+196+6+2).
+Donc le résultat montre qui il a détecter 17869 (=19426-1557) chimère
+sur 19426.
 
 calcul de ratio chimère qui est égale à la somme des sequences se
 trouvant dans l’objet seqtab.mochim (c’est l’objet après remove des
@@ -334,11 +372,7 @@ sum(seqtab.nochim)/sum(seqtab)
 
     ## [1] 0.7769154
 
-y a (1-0.96)\*100 = 3.5% de séq chimériques dans notre jeu de données.
-les chimères représentent environ 21% des variantes de séquence
-fusionnées, mais lorsque nous tenons compte de l’abondance de ces
-variantes, nous voyons qu’elles ne représentent qu’environ 4% des
-lectures de séquence fusionnée.
+y a (1-0.96)\*100 = 22.31% de séq chimériques dans notre jeu de données.
 
 # Track reads through the pipeline
 
@@ -365,26 +399,23 @@ head(track)
     ## Station5_Fond3_10sept14_   117140   106150    103806    104338  83613   64259
     ## Station5_Median1_10sept14_ 116519   106745    104811    105173  86212   65559
 
-On a conservé la majorité des lectures brutes et aucune baisse trop
-importante n’est associée à une seule étape.
-
 # assignation de la taxonomie
 
-il va regarder dans le base de données et à partir des séq qui sont
+Il va regarder dans le base de données et à partir des séq qui sont
 proches, et va assigner une taxonomie.
 
 c’est une façon d’attribuer une taxonomie aux séquences. La fonction
-assignTaxonomy prend en entrée un ensemble de séquences à classer et un
-ensemble d’apprentissage de séquences de référence avec une taxonomie
+assignTaxonomy() prend en entrée un ensemble de séquences à classer et
+un ensemble d’apprentissage de séquences de référence avec une taxonomie
 connue (silva en ce cas), et produit des affectations taxonomiques avec
 au moins une minBootconfiance bootstrap.
 
 ``` r
+library(dada2)
 taxa <- assignTaxonomy(seqtab.nochim, "~/silva_nr99_v138_train_set.fa.gz", multithread=TRUE)
 ```
 
-ajout d’espèces, téléchargement du fichier et le placer dans le
-répertoire taxa contenant les fichiers fastq.
+ajout d’espèces dans le répertoire taxa contenant les fichiers fastq.
 
 ``` r
 taxa <- addSpecies(taxa, "~/silva_species_assignment_v138.fa.gz")
@@ -413,12 +444,10 @@ head(taxa.print)
     ## [5,] "Clade II"         NA                        NA     
     ## [6,] "Actinomarinaceae" "Candidatus Actinomarina" NA
 
-les Bacteroidetes sont bien représentés parmi les taxons les plus
-abondants dans ces échantillons fécaux. Peu d’attributions d’espèces ont
-été faites, à la fois parce qu’il est souvent impossible de faire des
-assignations d’espèces sans ambiguïté à partir de sous-segments du gène
-16S, et parce qu’il y a étonnamment peu de couverture du microbiote
-intestinal de souris indigène dans les bases de données de référence.
+les Proteobacteria sont bien représentés parmi les taxons les plus
+abondants dans ces échantillons de la rade de Brest. Pas d’attributions
+d’espèces, parce qu’il est souvent impossible de faire des assignations
+d’espèces sans ambiguïté à partir de sous-segments du gène 16S.
 
 ``` r
 save.image(file="02_data-analysis")
